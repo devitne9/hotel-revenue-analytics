@@ -1,0 +1,4 @@
+relationship,pearson_r,observations
+Monthly occupancy vs ADR,0.895539,36
+Monthly sold room nights vs ADR,0.893220,36
+Completed booking lead time vs quoted nightly rate,0.124890,3655

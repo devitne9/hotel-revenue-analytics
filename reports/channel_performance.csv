@@ -1,0 +1,4 @@
+booking_channel,total_bookings,cancelled_bookings,cancellation_rate
+Direct,1793,128,0.071389
+Online travel agency,2003,380,0.189715
+Travel agent,430,63,0.146512

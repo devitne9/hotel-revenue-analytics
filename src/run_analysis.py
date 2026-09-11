@@ -1,0 +1,95 @@
+"""Run the full reproducible pipeline: python -m src.run_analysis."""
+
+import json
+
+import pandas as pd
+
+from src.clean_data import clean_bookings
+from src.config import DATA_DIR, REPORTS_DIR, ROOT
+from src.generate_synthetic_data import generate_bookings, introduce_quality_issues
+from src.kpi_analysis import (
+    build_room_nights, calculate_kpis, daily_performance,
+    monthly_performance, room_performance,
+)
+from src.pricing_analysis import business_insights, pricing_tables
+from src.seasonality_analysis import seasonality_tables
+from src.visualizations import create_visualizations
+
+
+def write_readme_results(kpis: dict, insights: list[str], quality: dict) -> None:
+    """Replace only the generated results section of the narrative README."""
+    path = ROOT / "README.md"
+    content = path.read_text(encoding="utf-8")
+    start, end = "<!-- RESULTS:START -->", "<!-- RESULTS:END -->"
+    if content.count(start) != 1 or content.count(end) != 1:
+        raise ValueError("README must contain exactly one pair of results markers")
+    rows = [
+        ("Room revenue", f"${kpis['total_revenue']:,.2f}"),
+        ("Unique bookings / completed / cancelled", f"{kpis['total_bookings']:,} / {kpis['completed_bookings']:,} / {kpis['cancelled_bookings']:,}"),
+        ("Completed room nights", f"{kpis['room_nights']:,}"),
+        ("Available room nights", f"{kpis['available_room_nights']:,}"),
+        ("ADR", f"${kpis['adr']:.2f}"),
+        ("Occupancy", f"{kpis['occupancy_rate']:.1%}"),
+        ("RevPAR", f"${kpis['revpar']:.2f}"),
+        ("Average completed stay", f"{kpis['average_length_of_stay']:.2f} nights"),
+        ("Cancellation rate", f"{kpis['cancellation_rate']:.1%}"),
+        ("Average lead time, completed bookings", f"{kpis['average_lead_time']:.1f} days"),
+    ]
+    block = "\n\nResults for **1 January 2023–31 December 2025**, generated with seed `42`.\n\n"
+    block += "| Metric | Result |\n|:--|--:|\n"
+    block += "\n".join(f"| {label} | {value} |" for label, value in rows)
+    block += "\n\n" + "\n\n".join(f"- {insight}" for insight in insights)
+    block += (
+        f"\n\nCleaning audit: {quality['input_rows']:,} raw rows → {quality['output_rows']:,} unique bookings; "
+        f"{quality['duplicate_rows_removed']:,} duplicate rows removed and "
+        f"{quality['missing_guests_retained']:,} missing guest counts retained as unknown. "
+        "See [the full quality report](reports/data_quality.json) for repaired derived values.\n\n"
+    )
+    prefix, rest = content.split(start)
+    _, suffix = rest.split(end)
+    path.write_text(prefix + start + block + end + suffix, encoding="utf-8")
+
+
+def main() -> None:
+    """Rebuild synthetic data, analytical tables, charts and README insights."""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    raw = introduce_quality_issues(generate_bookings())
+    raw_path = DATA_DIR / "synthetic_bookings.csv"
+    raw.to_csv(raw_path, index=False, date_format="%Y-%m-%d")
+    # Read the actual CSV to exercise the same parsing path as a real export.
+    bookings, quality = clean_bookings(pd.read_csv(raw_path))
+    bookings.to_csv(DATA_DIR / "cleaned_bookings.csv", index=False, date_format="%Y-%m-%d")
+    nightly = build_room_nights(bookings)
+    daily = daily_performance(nightly)
+    kpis = calculate_kpis(bookings, nightly)
+    tables = {
+        "monthly_performance": monthly_performance(bookings, daily),
+        "room_performance": room_performance(bookings, daily),
+        **seasonality_tables(bookings, daily),
+    }
+    tables.update(pricing_tables(bookings, daily, tables["monthly_performance"]))
+    # Include creation-month counts separately from arrival-month counts.
+    booking_month = bookings.groupby(bookings["booking_date"].dt.to_period("M")).size()
+    full_months = pd.period_range(bookings["booking_date"].min(), bookings["booking_date"].max(), freq="M")
+    tables["booking_creation_month"] = booking_month.reindex(full_months, fill_value=0).rename_axis("booking_month").to_frame("total_bookings")
+    channel = bookings.groupby("booking_channel").agg(total_bookings=("booking_id", "size"), cancelled_bookings=("booking_status", lambda values: values.eq("Cancelled").sum()))
+    channel["cancellation_rate"] = channel["cancelled_bookings"] / channel["total_bookings"]
+    tables["channel_performance"] = channel
+    daily.to_csv(REPORTS_DIR / "daily_performance.csv", index=False, float_format="%.6f")
+    for name, table in tables.items():
+        table.to_csv(REPORTS_DIR / f"{name}.csv", float_format="%.6f")
+    for name, report in [("kpis", kpis), ("data_quality", quality)]:
+        (REPORTS_DIR / f"{name}.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
+    insights = business_insights(kpis, tables)
+    (REPORTS_DIR / "business_insights.md").write_text(
+        "# Findings from synthetic data\n\n" + "\n\n".join(f"- {item}" for item in insights) + "\n", encoding="utf-8",
+    )
+    create_visualizations(bookings, tables)
+    write_readme_results(kpis, insights, quality)
+    print(f"Analyzed {kpis['total_bookings']:,} synthetic bookings; generated 10 charts and refreshed README results.")
+    print(json.dumps(kpis, indent=2))
+
+
+if __name__ == "__main__":
+    main()

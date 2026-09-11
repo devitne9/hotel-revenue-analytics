@@ -1,10 +1,10 @@
 {
-  "input_rows": 4268,
-  "normalized_category_cells": 258,
-  "duplicate_rows_removed": 42,
-  "missing_guests_retained": 42,
-  "nights_values_rebuilt": 42,
-  "lead_time_values_rebuilt": 42,
-  "revenue_values_rebuilt": 42,
-  "output_rows": 4226
+  "input_rows": 799,
+  "normalized_category_cells": 45,
+  "duplicate_rows_removed": 7,
+  "missing_guests_retained": 7,
+  "nights_values_rebuilt": 7,
+  "lead_time_values_rebuilt": 7,
+  "revenue_values_rebuilt": 7,
+  "output_rows": 792
 }

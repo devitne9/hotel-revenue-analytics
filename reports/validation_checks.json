@@ -1,0 +1,23 @@
+{
+  "all_checks_passed": true,
+  "physical_rooms": 4,
+  "maximum_occupied_rooms_per_night": 4,
+  "checks": {
+    "exactly_four_physical_rooms": true,
+    "valid_room_types": true,
+    "maximum_four_occupied_rooms_per_night": true,
+    "no_overlapping_completed_bookings": true,
+    "four_available_room_nights_every_day": true,
+    "correct_annual_capacity": true,
+    "annual_revenue_in_target_range": true,
+    "annual_occupancy_in_target_range": true,
+    "nightly_rates_in_guesthouse_range": true,
+    "revenue_equals_rate_times_completed_nights": true,
+    "nightly_revenue_reconciles_by_booking": true,
+    "occupied_nights_reconcile": true,
+    "annual_revenue_reconciles": true,
+    "adr_reconciles": true,
+    "occupancy_reconciles": true,
+    "seasonal_pattern_visible_each_year": true
+  }
+}

@@ -1,14 +1,14 @@
 {
-  "total_revenue": 1191827.13,
-  "total_bookings": 4226,
-  "completed_bookings": 3655,
-  "cancelled_bookings": 571,
-  "room_nights": 10468,
-  "available_room_nights": 19728,
-  "adr": 113.85433034008406,
-  "occupancy_rate": 0.5306163828061639,
-  "revpar": 60.412972931873476,
-  "average_length_of_stay": 2.8640218878248973,
-  "cancellation_rate": 0.1351159488878372,
-  "average_lead_time": 26.599452804377567
+  "total_revenue": 91183.12,
+  "total_bookings": 792,
+  "completed_bookings": 679,
+  "cancelled_bookings": 113,
+  "room_nights": 2044,
+  "available_room_nights": 4384,
+  "adr": 44.61013698630137,
+  "occupancy_rate": 0.46624087591240876,
+  "revpar": 20.799069343065693,
+  "average_length_of_stay": 3.0103092783505154,
+  "cancellation_rate": 0.14267676767676768,
+  "average_lead_time": 28.798232695139912
 }

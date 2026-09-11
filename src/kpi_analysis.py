@@ -19,6 +19,8 @@ def build_room_nights(bookings: pd.DataFrame) -> pd.DataFrame:
     nightly = completed.explode("stay_date").rename(columns={"room_rate": "nightly_revenue"})
     nightly["stay_date"] = pd.to_datetime(nightly["stay_date"])
     nightly = nightly[["booking_id", "room_id", "room_type", "stay_date", "nightly_revenue"]].reset_index(drop=True)
+    if not nightly["room_id"].map(ROOMS).eq(nightly["room_type"]).all():
+        raise ValueError("Unknown physical room or mismatched room type")
     if nightly.duplicated(["room_id", "stay_date"]).any():
         raise ValueError("Overlapping completed stays exceed individual room capacity")
     return nightly
@@ -37,6 +39,7 @@ def daily_performance(nightly: pd.DataFrame) -> pd.DataFrame:
     if (daily["room_nights"] > daily["available_room_nights"]).any():
         raise ValueError("Occupied room nights exceed available capacity")
     daily["month"] = daily["stay_date"].dt.to_period("M").astype(str)
+    daily["year"] = daily["stay_date"].dt.year
     daily["month_number"] = daily["stay_date"].dt.month
     daily["season"] = daily["month_number"].map(SEASON_BY_MONTH)
     daily["day_type"] = daily["stay_date"].dt.dayofweek.isin([4, 5]).map({True: "Weekend", False: "Weekday"})
@@ -81,6 +84,23 @@ def monthly_performance(bookings: pd.DataFrame, daily: pd.DataFrame) -> pd.DataF
         subset = bookings if status is None else bookings.loc[bookings["booking_status"].eq(status)]
         counts = subset.groupby(subset["check_in"].dt.to_period("M").astype(str)).size()
         result[column] = counts.reindex(result.index, fill_value=0)
+    return result
+
+
+def annual_performance(bookings: pd.DataFrame, daily: pd.DataFrame) -> pd.DataFrame:
+    """Stay-year economics; booking counts and mean stay use check-in year.
+
+    A cross-year stay splits its revenue/nights between calendar years, but
+    counts once in its arrival year with its full length of stay.
+    """
+    result = aggregate_performance(daily, "year")
+    for status, column in [(None, "total_bookings"), ("Completed", "completed_bookings"), ("Cancelled", "cancelled_bookings")]:
+        subset = bookings if status is None else bookings.loc[bookings["booking_status"].eq(status)]
+        counts = subset.groupby(subset["check_in"].dt.year).size()
+        result[column] = counts.reindex(result.index, fill_value=0)
+    completed = bookings.loc[bookings["booking_status"].eq("Completed")]
+    result["average_length_of_stay"] = completed.groupby(completed["check_in"].dt.year)["nights"].mean()
+    result["cancellation_rate"] = result["cancelled_bookings"] / result["total_bookings"].replace(0, float("nan"))
     return result
 
 

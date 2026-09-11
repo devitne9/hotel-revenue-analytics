@@ -20,10 +20,10 @@ def generate_bookings(seed: int = SEED) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
     next_available = {room_id: START_DATE for room_id in ROOMS}
     arrival_chance = {
-        1: .13, 2: .15, 3: .22, 4: .29, 5: .36, 6: .53,
-        7: .68, 8: .66, 9: .43, 10: .29, 11: .16, 12: .20,
+        1: .09, 2: .11, 3: .14, 4: .24, 5: .30, 6: .53,
+        7: .60, 8: .58, 9: .40, 10: .24, 11: .11, 12: .13,
     }
-    seasonal_price = {"Winter": .83, "Spring": 1.0, "Summer": 1.32, "Autumn": 1.04}
+    seasonal_price = {"Low": .92, "Shoulder": 1.0, "High": 1.25}
     records = []
     for check_in in pd.date_range(START_DATE, END_DATE, inclusive="left"):
         season = SEASON_BY_MONTH[check_in.month]
@@ -31,26 +31,28 @@ def generate_bookings(seed: int = SEED) -> pd.DataFrame:
         for room_id, room_type in ROOMS.items():
             if next_available[room_id] > check_in:
                 continue
-            chance = arrival_chance[check_in.month] + .12 * weekend
-            if room_type == "Family":
-                chance += .08 if season == "Summer" else -.04
+            chance = arrival_chance[check_in.month] + .07 * weekend
+            if room_type == "Family Room":
+                chance += .06 if season == "High" else -.03
             if rng.random() >= chance:
                 continue
-            nights = int(np.clip(1 + rng.poisson(2.5 if season == "Summer" else 1.6), 1, 9))
+            nights = int(np.clip(1 + rng.poisson(2.5 if season == "High" else 1.6), 1, 9))
             # Keep all stays within the reporting window; document this edge effect.
             nights = min(nights, (END_DATE - check_in).days)
-            lead_time = int(np.clip(rng.lognormal(3.35 if season == "Summer" else 2.7, .8), 0, 180))
+            lead_time = int(np.clip(rng.lognormal(3.35 if season == "High" else 2.7, .8), 0, 180))
             channel = str(rng.choice(CHANNELS, p=[.43, .47, .10]))
             cancellation_probability = {"Direct": .08, "Online travel agency": .19, "Travel agent": .12}[channel]
             cancellation_probability += .04 * (lead_time > 60)
             status = "Cancelled" if rng.random() < cancellation_probability else "Completed"
             advance_discount = .94 if lead_time >= 60 else 1.0
-            last_minute_discount = .92 if lead_time <= 3 and season == "Winter" else 1.0
+            last_minute_discount = .95 if lead_time <= 3 and season == "Low" else 1.0
             rate = round(
                 BASE_RATES[room_type] * seasonal_price[season]
-                * (1.12 if weekend else 1.0) * (1 + .03 * (check_in.year - 2023))
+                * (1.08 if weekend else 1.0) * (1 + .02 * (check_in.year - 2023))
                 * advance_discount * last_minute_discount * rng.uniform(.94, 1.06), 2,
             )
+            # A small guesthouse's quoted rate bounds, never a revenue target.
+            rate = float(np.clip(rate, 30.0, 65.0))
             check_out = check_in + pd.Timedelta(days=nights)
             records.append({
                 "booking_id": f"SYN-B{len(records) + 1:06d}",
